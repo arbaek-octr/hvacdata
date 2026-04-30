@@ -184,7 +184,7 @@ export function render() {
       <!-- Left: Interactive image viewer -->
       <div class="ov-viewer">
         <div class="viewer-frame">
-          <img class="viewer-main" id="viewer-main-img" src="assets/hvac3d.png" alt="시스템 개요">
+          <img class="viewer-main" id="viewer-main-img" src="${import.meta.env.BASE_URL}assets/hvac3d.png" alt="시스템 개요">
           ${ahuOverlay.tags.map(dataTag).join('')}
           ${spots.map(hotspot).join('')}
           <div class="viewer-status-badge">
@@ -193,12 +193,12 @@ export function render() {
         </div>
         ${pipeGroup(ahuOverlay.pipe)}
         <div class="viewer-thumbs">
-          <div class="vthumb active" data-src="assets/hvac3d.png">
-            <img src="assets/hvac3d.png" alt="전체 현황">
+          <div class="vthumb active" data-src="${import.meta.env.BASE_URL}assets/hvac3d.png">
+            <img src="${import.meta.env.BASE_URL}assets/hvac3d.png" alt="전체 현황">
             <span>전체 현황</span>
           </div>
-          <div class="vthumb" data-src="assets/hero2.png">
-            <img src="assets/hero2.png" alt="장비 현황">
+          <div class="vthumb" data-src="${import.meta.env.BASE_URL}assets/hero2.png">
+            <img src="${import.meta.env.BASE_URL}assets/hero2.png" alt="장비 현황">
             <span>장비 현황</span>
           </div>
         </div>
