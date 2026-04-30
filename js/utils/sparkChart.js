@@ -2,6 +2,43 @@
    utils/sparkChart.js — Lightweight SVG line chart
    ═══════════════════════════════════════ */
 
+export function renderSparkline(container, { values, color = '#2a6ef5' }) {
+  const W = 200, H = 52;
+  const valid = values.map((v, i) => ({ v, i })).filter(d => d.v !== null);
+  if (!valid.length) { container.innerHTML = ''; return; }
+
+  const n = values.length;
+  const minV = Math.min(...valid.map(d => d.v));
+  const maxV = Math.max(...valid.map(d => d.v));
+  const range = maxV - minV || 1;
+
+  const xScale = i => (i / (n - 1)) * W;
+  const yScale = v => H * 0.9 - ((v - minV) / range) * H * 0.8;
+
+  let path = '', area = '', first = true;
+  valid.forEach(({ v, i }) => {
+    const x = xScale(i), y = yScale(v);
+    if (first) { path += `M${x},${y}`; area += `M${x},${H} L${x},${y}`; first = false; }
+    else { path += ` L${x},${y}`; area += ` L${x},${y}`; }
+  });
+  const last = valid[valid.length - 1];
+  area += ` L${xScale(last.i)},${H} Z`;
+
+  const id = `sp-${Math.random().toString(36).slice(2)}`;
+  container.innerHTML = `
+  <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">
+    <defs>
+      <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.22"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${area}" fill="url(#${id})"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="1.6"
+          stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
 export function renderChart(container, { timestamps, values, label, unit, color = '#2a6ef5' }) {
   const W = 580, H = 160, PAD = { t: 16, r: 12, b: 32, l: 44 };
   const cW = W - PAD.l - PAD.r;

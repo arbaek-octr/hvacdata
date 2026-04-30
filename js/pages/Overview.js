@@ -3,7 +3,7 @@
    ═══════════════════════════════════════ */
 import { equipment, zones, outerEnv, sysPresure, alarms, ahuOverlay } from '../data/mock.js';
 import { navigate } from '../router.js';
-import { renderChart } from '../utils/sparkChart.js';
+import { renderChart, renderSparkline } from '../utils/sparkChart.js';
 
 function equipmentCard(eq) {
   const rows = eq.points.map(p =>
@@ -264,6 +264,20 @@ export function render() {
         ${zones.map(zoneCard).join('')}
       </div>
     </div>
+
+    <!-- Analysis panel -->
+    <div class="analysis-panel">
+      <div class="analysis-hdr">
+        <div>
+          <div class="analysis-title">센서 데이터</div>
+          <div class="analysis-sub">AHU18 · 최근 7일 · 5분 간격 · 클릭하면 전체 차트</div>
+        </div>
+        <div class="analysis-badge">분석 준비 중</div>
+      </div>
+      <div class="analysis-vars" id="analysis-vars">
+        <div class="avar-loading">데이터 로딩 중...</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -313,8 +327,16 @@ export function mount(el) {
     });
   });
 
-  /* Chart modal */
+  /* Shared data loader */
   let sensorData = null;
+  async function loadData() {
+    if (sensorData) return sensorData;
+    const res = await fetch(`${import.meta.env.BASE_URL}data/sensor_data.json`);
+    sensorData = await res.json();
+    return sensorData;
+  }
+
+  /* Chart modal */
   const modal      = el.querySelector('#chart-modal');
   const modalTitle = el.querySelector('#chart-modal-title');
   const modalBody  = el.querySelector('#chart-modal-body');
@@ -326,23 +348,18 @@ export function mount(el) {
     modalTitle.textContent = cfg.label;
     modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#9aaac5">로딩 중...</div>';
 
-    if (!sensorData) {
-      try {
-        const res = await fetch(`${import.meta.env.BASE_URL}data/sensor_data.json`);
-        sensorData = await res.json();
-      } catch {
-        modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#f05a5a">데이터 로드 실패</div>';
-        return;
-      }
+    try {
+      const data = await loadData();
+      renderChart(modalBody, {
+        timestamps: data.timestamps,
+        values:     data[cfg.key],
+        label:      cfg.label,
+        unit:       cfg.unit,
+        color:      cfg.color,
+      });
+    } catch {
+      modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#f05a5a">데이터 로드 실패</div>';
     }
-
-    renderChart(modalBody, {
-      timestamps: sensorData.timestamps,
-      values:     sensorData[cfg.key],
-      label:      cfg.label,
-      unit:       cfg.unit,
-      color:      cfg.color,
-    });
   }
 
   el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
@@ -359,4 +376,56 @@ export function mount(el) {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') modal.style.display = 'none';
   }, { once: false });
+
+  /* Analysis panel — mini sparkline cards */
+  async function initAnalysisPanel() {
+    const container = el.querySelector('#analysis-vars');
+    try {
+      const data = await loadData();
+      const vars = Object.entries(KEY_MAP);
+
+      container.innerHTML = vars.map(([tagKey, cfg]) => {
+        const vals  = data[cfg.key].filter(v => v !== null);
+        const last  = vals.length ? vals[vals.length - 1].toFixed(1) : '—';
+        const min   = vals.length ? Math.min(...vals).toFixed(1) : '—';
+        const max   = vals.length ? Math.max(...vals).toFixed(1) : '—';
+        const avg   = vals.length ? (vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1) : '—';
+        return `
+        <div class="avar-card" data-key="${tagKey}" style="--avar-color:${cfg.color}">
+          <div class="avar-top">
+            <span class="avar-label">${cfg.label}</span>
+            <span class="avar-unit">${cfg.unit}</span>
+          </div>
+          <div class="avar-spark" id="spark-${tagKey}"></div>
+          <div class="avar-stats">
+            <div class="avar-stat-item">
+              <span class="avar-stat-lbl">현재</span>
+              <span class="avar-stat-val" style="color:${cfg.color}">${last}</span>
+            </div>
+            <div class="avar-stat-item">
+              <span class="avar-stat-lbl">평균</span>
+              <span class="avar-stat-val">${avg}</span>
+            </div>
+            <div class="avar-stat-item">
+              <span class="avar-stat-lbl">범위</span>
+              <span class="avar-stat-val">${min}–${max}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+
+      vars.forEach(([tagKey, cfg]) => {
+        const sparkEl = el.querySelector(`#spark-${tagKey}`);
+        renderSparkline(sparkEl, { values: data[cfg.key], color: cfg.color });
+      });
+
+      container.querySelectorAll('.avar-card').forEach(card => {
+        card.addEventListener('click', () => openChart(card.dataset.key));
+      });
+    } catch {
+      container.innerHTML = '<div class="avar-loading" style="color:#f05a5a">데이터 로드 실패</div>';
+    }
+  }
+
+  initAnalysisPanel();
 }

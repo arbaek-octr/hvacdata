@@ -644,6 +644,150 @@
 .zone-arrow { color: var(--blue-dim); font-size: 18px; }
 
 /* ══════════════════════════════
+   Analysis panel
+   ══════════════════════════════ */
+.analysis-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-card);
+  margin-top: 16px;
+}
+
+.analysis-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.analysis-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: .2px;
+}
+
+.analysis-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+
+.analysis-badge {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 3px 10px;
+  letter-spacing: .4px;
+}
+
+.analysis-vars {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+.avar-loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 32px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.avar-card {
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: 12px 14px 10px;
+  cursor: pointer;
+  transition: border-color .18s, box-shadow .18s, transform .18s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.avar-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--avar-color, var(--blue-primary));
+  opacity: .7;
+}
+
+.avar-card:hover {
+  border-color: var(--avar-color, var(--blue-primary));
+  box-shadow: 0 4px 20px rgba(0,0,0,.08);
+  transform: translateY(-2px);
+}
+
+.avar-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.avar-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.avar-unit {
+  font-size: 9px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.avar-spark {
+  height: 52px;
+  margin: 0 -2px;
+}
+
+.avar-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.avar-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+
+.avar-stat-lbl {
+  font-size: 8px;
+  color: var(--text-dim);
+  letter-spacing: .3px;
+}
+
+.avar-stat-val {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--text-primary);
+}
+
+/* ══════════════════════════════
    Chart modal
    ══════════════════════════════ */
 .chart-modal {
