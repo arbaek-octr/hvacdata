@@ -2,11 +2,12 @@
    app.js — Entry point
    Bootstraps components and router
    ═══════════════════════════════════════ */
-import * as Header   from './components/Header.js';
-import * as Sidebar  from './components/Sidebar.js';
-import * as Modal    from './components/Modal.js';
-import * as Overview from './pages/Overview.js';
-import * as AhuDetail from './pages/AhuDetail.js';
+import * as Header        from './components/Header.js';
+import * as Sidebar       from './components/Sidebar.js';
+import * as Modal         from './components/Modal.js';
+import * as CommentWidget from './components/CommentWidget.js';
+import * as Overview      from './pages/Overview.js';
+import * as AhuDetail     from './pages/AhuDetail.js';
 import { on, init as routerInit } from './router.js';
 
 function mountPage(html, mountFn, params) {
@@ -29,6 +30,11 @@ function bootstrap() {
 
   modalRoot.innerHTML = Modal.render();
   Modal.mount(modalRoot);
+
+  const commentRoot = document.createElement('div');
+  document.body.appendChild(commentRoot);
+  commentRoot.innerHTML = CommentWidget.render();
+  CommentWidget.mount(commentRoot);
 
   // Routes
   on('overview', () => {

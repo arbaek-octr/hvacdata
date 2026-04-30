@@ -48,7 +48,7 @@ function pressureRow(p) {
 
 function dataTag({ key, label, value, unit, x, y, type }) {
   return /* html */`
-  <div class="data-tag dt-${type}" style="left:${x};top:${y}" data-key="${key}">
+  <div class="data-tag dt-${type}" style="left:${x};top:${y}" data-key="${key}" draggable="true">
     <span class="dt-val">${value}</span><span class="dt-unit">${unit}</span>
     <div class="dt-label">${label}</div>
   </div>`;
@@ -370,8 +370,15 @@ export function mount(el) {
   }
 
   el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
-    if (!KEY_MAP[tag.dataset.key]) { tag.style.cursor = 'default'; return; }
-    tag.addEventListener('click', () => openChart(tag.dataset.key));
+    const key = tag.dataset.key;
+    if (!KEY_MAP[key]) { tag.style.cursor = 'default'; tag.draggable = false; return; }
+    tag.addEventListener('click', () => openChart(key));
+    tag.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', key);
+      e.dataTransfer.effectAllowed = 'copy';
+      tag.classList.add('dragging');
+    });
+    tag.addEventListener('dragend', () => tag.classList.remove('dragging'));
   });
 
   el.querySelector('#chart-modal-close').addEventListener('click', () => {
