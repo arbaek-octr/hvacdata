@@ -478,7 +478,6 @@ export function mount(el) {
       /* Drag handlers on cards */
       container.querySelectorAll('.avar-card').forEach(card => {
         card.addEventListener('click', () => openChart(card.dataset.key));
-
         card.addEventListener('dragstart', e => {
           e.dataTransfer.setData('text/plain', card.dataset.key);
           e.dataTransfer.effectAllowed = 'copy';
@@ -487,19 +486,28 @@ export function mount(el) {
         card.addEventListener('dragend', () => card.classList.remove('dragging'));
       });
 
-      /* Drop zone */
-      const dropZone = el.querySelector('#compare-drop');
-      dropZone.addEventListener('dragover', e => {
+      /* Analysis panel = drop target (entire panel, not just compare zone) */
+      const analysisPanel = el.querySelector('.analysis-panel');
+      let dragDepth = 0;
+
+      analysisPanel.addEventListener('dragenter', e => {
+        if (!e.dataTransfer.types.includes('text/plain')) return;
+        e.preventDefault();
+        dragDepth++;
+        analysisPanel.classList.add('drag-target');
+      });
+      analysisPanel.addEventListener('dragleave', () => {
+        dragDepth--;
+        if (dragDepth <= 0) { dragDepth = 0; analysisPanel.classList.remove('drag-target'); }
+      });
+      analysisPanel.addEventListener('dragover', e => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
-        dropZone.classList.add('drag-over');
       });
-      dropZone.addEventListener('dragleave', e => {
-        if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drag-over');
-      });
-      dropZone.addEventListener('drop', e => {
+      analysisPanel.addEventListener('drop', e => {
         e.preventDefault();
-        dropZone.classList.remove('drag-over');
+        dragDepth = 0;
+        analysisPanel.classList.remove('drag-target');
         const tagKey = e.dataTransfer.getData('text/plain');
         const cfg = KEY_MAP[tagKey];
         if (cfg) addCompareChip(tagKey, cfg);

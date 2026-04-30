@@ -40,7 +40,7 @@ export function render() {
       </div>
       <div class="cw-list" id="cw-list"></div>
       <div class="cw-form">
-        <textarea class="cw-input" id="cw-input" placeholder="의견을 남겨주세요..." rows="2"></textarea>
+        <textarea class="cw-input" id="cw-input" placeholder="의견을 남겨주세요..." rows="3"></textarea>
         <button class="cw-submit" id="cw-submit">등록</button>
       </div>
     </div>
