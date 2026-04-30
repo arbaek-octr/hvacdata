@@ -270,12 +270,19 @@ export function render() {
       <div class="analysis-hdr">
         <div>
           <div class="analysis-title">센서 데이터</div>
-          <div class="analysis-sub">AHU18 · 최근 7일 · 5분 간격 · 클릭하면 전체 차트</div>
+          <div class="analysis-sub">AHU18 · 최근 7일 · 5분 간격 · 클릭하면 전체 차트 · 드래그하여 비교</div>
         </div>
-        <div class="analysis-badge">분석 준비 중</div>
+        <div class="analysis-badge" id="analysis-badge">분석 준비 중</div>
       </div>
       <div class="analysis-vars" id="analysis-vars">
         <div class="avar-loading">데이터 로딩 중...</div>
+      </div>
+      <div class="analysis-compare" id="analysis-compare">
+        <div class="compare-label">비교 분석</div>
+        <div class="compare-drop" id="compare-drop">
+          <div class="compare-empty" id="compare-empty">변수를 여기로 드래그하여 추가</div>
+          <div class="compare-chips" id="compare-chips"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -377,7 +384,49 @@ export function mount(el) {
     if (e.key === 'Escape') modal.style.display = 'none';
   }, { once: false });
 
-  /* Analysis panel — mini sparkline cards */
+  /* Analysis panel — mini sparkline cards + drag-and-drop compare */
+  const compareKeys = new Set();
+
+  function updateCompareBadge() {
+    const badge = el.querySelector('#analysis-badge');
+    const empty = el.querySelector('#compare-empty');
+    const n = compareKeys.size;
+    if (n === 0) {
+      badge.textContent = '분석 준비 중';
+      badge.classList.remove('badge-ready');
+      empty.style.display = '';
+    } else {
+      badge.textContent = n >= 2 ? `${n}개 변수 비교 준비` : `${n}개 선택됨`;
+      badge.classList.toggle('badge-ready', n >= 2);
+      empty.style.display = 'none';
+    }
+  }
+
+  function addCompareChip(tagKey, cfg) {
+    if (compareKeys.has(tagKey)) return;
+    compareKeys.add(tagKey);
+    const chips = el.querySelector('#compare-chips');
+    const chip = document.createElement('div');
+    chip.className = 'compare-chip';
+    chip.dataset.key = tagKey;
+    chip.style.setProperty('--chip-color', cfg.color);
+    chip.innerHTML = `
+      <span class="chip-dot"></span>
+      <span class="chip-label">${cfg.label}</span>
+      <span class="chip-unit">${cfg.unit}</span>
+      <button class="chip-remove" title="제거">×</button>`;
+    chip.querySelector('.chip-remove').addEventListener('click', e => {
+      e.stopPropagation();
+      compareKeys.delete(tagKey);
+      chip.remove();
+      el.querySelector(`.avar-card[data-key="${tagKey}"]`)?.classList.remove('selected');
+      updateCompareBadge();
+    });
+    chips.appendChild(chip);
+    el.querySelector(`.avar-card[data-key="${tagKey}"]`)?.classList.add('selected');
+    updateCompareBadge();
+  }
+
   async function initAnalysisPanel() {
     const container = el.querySelector('#analysis-vars');
     try {
@@ -391,7 +440,8 @@ export function mount(el) {
         const max   = vals.length ? Math.max(...vals).toFixed(1) : '—';
         const avg   = vals.length ? (vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1) : '—';
         return `
-        <div class="avar-card" data-key="${tagKey}" style="--avar-color:${cfg.color}">
+        <div class="avar-card" data-key="${tagKey}" style="--avar-color:${cfg.color}" draggable="true">
+          <div class="avar-drag-hint">⠿</div>
           <div class="avar-top">
             <span class="avar-label">${cfg.label}</span>
             <span class="avar-unit">${cfg.unit}</span>
@@ -415,13 +465,39 @@ export function mount(el) {
       }).join('');
 
       vars.forEach(([tagKey, cfg]) => {
-        const sparkEl = el.querySelector(`#spark-${tagKey}`);
-        renderSparkline(sparkEl, { values: data[cfg.key], color: cfg.color });
+        renderSparkline(el.querySelector(`#spark-${tagKey}`), { values: data[cfg.key], color: cfg.color });
       });
 
+      /* Drag handlers on cards */
       container.querySelectorAll('.avar-card').forEach(card => {
         card.addEventListener('click', () => openChart(card.dataset.key));
+
+        card.addEventListener('dragstart', e => {
+          e.dataTransfer.setData('text/plain', card.dataset.key);
+          e.dataTransfer.effectAllowed = 'copy';
+          card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
       });
+
+      /* Drop zone */
+      const dropZone = el.querySelector('#compare-drop');
+      dropZone.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        dropZone.classList.add('drag-over');
+      });
+      dropZone.addEventListener('dragleave', e => {
+        if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drag-over');
+      });
+      dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const tagKey = e.dataTransfer.getData('text/plain');
+        const cfg = KEY_MAP[tagKey];
+        if (cfg) addCompareChip(tagKey, cfg);
+      });
+
     } catch {
       container.innerHTML = '<div class="avar-loading" style="color:#f05a5a">데이터 로드 실패</div>';
     }
