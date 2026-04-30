@@ -3,6 +3,7 @@
    ═══════════════════════════════════════ */
 import { equipment, zones, outerEnv, sysPresure, alarms, ahuOverlay } from '../data/mock.js';
 import { navigate } from '../router.js';
+import { renderChart } from '../utils/sparkChart.js';
 
 function equipmentCard(eq) {
   const rows = eq.points.map(p =>
@@ -264,8 +265,31 @@ export function render() {
       </div>
     </div>
   </div>
+</div>
+
+<!-- Chart modal -->
+<div class="chart-modal" id="chart-modal">
+  <div class="chart-modal-backdrop"></div>
+  <div class="chart-modal-panel">
+    <div class="chart-modal-header">
+      <div>
+        <span class="chart-modal-title" id="chart-modal-title">—</span>
+        <span class="chart-modal-range">최근 7일</span>
+      </div>
+      <button class="chart-modal-close" id="chart-modal-close">×</button>
+    </div>
+    <div class="chart-modal-body" id="chart-modal-body"></div>
+  </div>
 </div>`;
 }
+
+const KEY_MAP = {
+  supply_temp:     { key: 'supply_temp',     label: '공급 온도 (SDT)',     unit: '°C', color: '#2a6ef5' },
+  return_temp:     { key: 'return_temp',     label: '환수 온도 (RDT)',     unit: '°C', color: '#f05a5a' },
+  room_temp_left:  { key: 'room_temp_left',  label: '좌측 실내온도',       unit: '°C', color: '#00c48c' },
+  room_temp_right: { key: 'room_temp_right', label: '우측 실내온도',       unit: '°C', color: '#00c48c' },
+  room_humid_left: { key: 'outdoor_humidity', label: '외기 습도',           unit: '%',  color: '#9b6cf5' },
+};
 
 export function mount(el) {
   /* Thumbnail switcher */
@@ -288,4 +312,51 @@ export function mount(el) {
       });
     });
   });
+
+  /* Chart modal */
+  let sensorData = null;
+  const modal      = el.querySelector('#chart-modal');
+  const modalTitle = el.querySelector('#chart-modal-title');
+  const modalBody  = el.querySelector('#chart-modal-body');
+
+  async function openChart(dataKey) {
+    const cfg = KEY_MAP[dataKey];
+    if (!cfg) return;
+    modal.style.display = 'flex';
+    modalTitle.textContent = cfg.label;
+    modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#9aaac5">로딩 중...</div>';
+
+    if (!sensorData) {
+      try {
+        const res = await fetch(`${import.meta.env.BASE_URL}data/sensor_data.json`);
+        sensorData = await res.json();
+      } catch {
+        modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#f05a5a">데이터 로드 실패</div>';
+        return;
+      }
+    }
+
+    renderChart(modalBody, {
+      timestamps: sensorData.timestamps,
+      values:     sensorData[cfg.key],
+      label:      cfg.label,
+      unit:       cfg.unit,
+      color:      cfg.color,
+    });
+  }
+
+  el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
+    if (!KEY_MAP[tag.dataset.key]) { tag.style.cursor = 'default'; return; }
+    tag.addEventListener('click', () => openChart(tag.dataset.key));
+  });
+
+  el.querySelector('#chart-modal-close').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  el.querySelector('.chart-modal-backdrop').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') modal.style.display = 'none';
+  }, { once: false });
 }

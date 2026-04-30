@@ -101,9 +101,9 @@
   gap: 2px;
   box-shadow: 0 1px 6px rgba(20,40,100,0.10);
   backdrop-filter: blur(6px);
-  cursor: default;
+  cursor: pointer;
   transition: box-shadow .15s, transform .15s;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .data-tag:hover {
@@ -642,3 +642,76 @@
 .zone-name  { font-size: 12px; color: var(--text-primary); font-weight: 500; line-height: 1.4; }
 .zone-sub   { font-size: 10px; color: var(--text-dim); margin-top: 3px; }
 .zone-arrow { color: var(--blue-dim); font-size: 18px; }
+
+/* ══════════════════════════════
+   Chart modal
+   ══════════════════════════════ */
+.chart-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 16, 32, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.chart-modal-panel {
+  position: relative;
+  z-index: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-xl);
+  box-shadow: 0 16px 64px rgba(10,16,32,.35);
+  width: min(640px, 92vw);
+  padding: 20px 22px 18px;
+  animation: modal-in .18s ease;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0);   }
+}
+
+.chart-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.chart-modal-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: .2px;
+}
+
+.chart-modal-range {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: 8px;
+  font-weight: 400;
+}
+
+.chart-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color .15s;
+}
+.chart-modal-close:hover { color: var(--text-primary); }
+
+.chart-modal-body { min-height: 100px; }
