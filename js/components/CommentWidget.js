@@ -1,27 +1,32 @@
 /* ═══════════════════════════════════════
    CommentWidget.js — Floating feedback panel
-   Comments stored in localStorage
+   Comments stored in Google Spreadsheet via Apps Script
    ═══════════════════════════════════════ */
 
-const STORAGE_KEY = 'hvac-comments';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyy0EnmMJRE08AcMVEGDM-qOuGEs3BBqwOk3C9fIbRM7naWaNekaIl-dS0XVSpCKByH/exec';
+const NAME_KEY = 'hvac-author';
 
-function load() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-  catch { return []; }
+function formatDate(iso) {
+  const d = new Date(iso);
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, '0');
+  const dd   = String(d.getDate()).padStart(2, '0');
+  const hh   = String(d.getHours()).padStart(2, '0');
+  const min  = String(d.getMinutes()).padStart(2, '0');
+  return `${yyyy}.${mm}.${dd} ${hh}:${min}`;
 }
 
-function save(arr) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+async function loadComments() {
+  if (!SHEETS_URL) return [];
+  try {
+    const res = await fetch(SHEETS_URL);
+    return await res.json();
+  } catch { return []; }
 }
 
-function timeAgo(iso) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1)  return '방금';
-  if (m < 60) return `${m}분 전`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}시간 전`;
-  return `${Math.floor(h / 24)}일 전`;
+async function postAction(body) {
+  if (!SHEETS_URL) return;
+  await fetch(SHEETS_URL, { method: 'POST', body: JSON.stringify(body) });
 }
 
 export function render() {
@@ -41,24 +46,30 @@ export function render() {
       <div class="cw-list" id="cw-list"></div>
       <div class="cw-form">
         <textarea class="cw-input" id="cw-input" placeholder="의견을 남겨주세요..." rows="3"></textarea>
-        <button class="cw-submit" id="cw-submit">등록</button>
+        <div class="cw-form-row">
+          <input class="cw-name" id="cw-name" type="text" placeholder="이름" maxlength="20">
+          <button class="cw-submit" id="cw-submit">등록</button>
+        </div>
       </div>
     </div>
   </div>`;
 }
 
 export function mount(el) {
-  const widget  = el.querySelector('#comment-widget');
-  const toggle  = el.querySelector('#cw-toggle');
-  const panel   = el.querySelector('#cw-panel');
+  const widget   = el.querySelector('#comment-widget');
+  const toggle   = el.querySelector('#cw-toggle');
   const closeBtn = el.querySelector('#cw-close');
-  const list    = el.querySelector('#cw-list');
-  const input   = el.querySelector('#cw-input');
-  const submit  = el.querySelector('#cw-submit');
-  const count   = el.querySelector('#cw-count');
+  const list     = el.querySelector('#cw-list');
+  const input    = el.querySelector('#cw-input');
+  const nameInput = el.querySelector('#cw-name');
+  const submit   = el.querySelector('#cw-submit');
+  const count    = el.querySelector('#cw-count');
 
-  function renderList() {
-    const comments = load();
+  nameInput.value = localStorage.getItem(NAME_KEY) || '';
+
+  async function renderList() {
+    list.innerHTML = '<div class="cw-empty">불러오는 중...</div>';
+    const comments = await loadComments();
     count.textContent = comments.length;
     count.style.display = comments.length ? '' : 'none';
     if (!comments.length) {
@@ -69,16 +80,20 @@ export function mount(el) {
       <div class="cw-item" data-id="${c.id}">
         <div class="cw-item-text">${c.text.replace(/</g, '&lt;')}</div>
         <div class="cw-item-meta">
-          <span>${timeAgo(c.time)}</span>
+          <span>
+            <span class="cw-author">${(c.author || '익명').replace(/</g, '&lt;')}</span>
+            <span class="cw-dot">·</span>
+            <span>${formatDate(c.time)}</span>
+          </span>
           <button class="cw-del" data-id="${c.id}" title="삭제">×</button>
         </div>
       </div>`).join('');
 
     list.querySelectorAll('.cw-del').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const updated = load().filter(c => c.id !== btn.dataset.id);
-        save(updated);
-        renderList();
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        await postAction({ action: 'delete', id: btn.dataset.id });
+        await renderList();
       });
     });
   }
@@ -96,20 +111,26 @@ export function mount(el) {
 
   closeBtn.addEventListener('click', () => widget.classList.add('cw-closed'));
 
-  submit.addEventListener('click', addComment);
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment(); }
-  });
-
-  function addComment() {
-    const text = input.value.trim();
+  async function handleAdd() {
+    const text   = input.value.trim();
+    const author = nameInput.value.trim() || '익명';
     if (!text) return;
-    const comments = load();
-    comments.push({ id: Date.now().toString(36), text, time: new Date().toISOString() });
-    save(comments);
+    submit.disabled = true;
+    localStorage.setItem(NAME_KEY, nameInput.value.trim());
+    await postAction({
+      action: 'add',
+      id: Date.now().toString(36),
+      text,
+      author,
+      time: new Date().toISOString()
+    });
     input.value = '';
-    renderList();
+    submit.disabled = false;
+    await renderList();
   }
 
-  renderList();
+  submit.addEventListener('click', handleAdd);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAdd(); }
+  });
 }
