@@ -3,6 +3,7 @@
    ═══════════════════════════════════════ */
 import { equipment, zones, outerEnv, sysPresure, alarms, ahuOverlay } from '../data/mock.js';
 import { navigate } from '../router.js';
+import { renderChart, renderSparkline } from '../utils/sparkChart.js';
 
 function equipmentCard(eq) {
   const rows = eq.points.map(p =>
@@ -47,7 +48,7 @@ function pressureRow(p) {
 
 function dataTag({ key, label, value, unit, x, y, type }) {
   return /* html */`
-  <div class="data-tag dt-${type}" style="left:${x};top:${y}" data-key="${key}">
+  <div class="data-tag dt-${type}" style="left:${x};top:${y}" data-key="${key}" draggable="true">
     <span class="dt-val">${value}</span><span class="dt-unit">${unit}</span>
     <div class="dt-label">${label}</div>
   </div>`;
@@ -263,9 +264,53 @@ export function render() {
         ${zones.map(zoneCard).join('')}
       </div>
     </div>
+
+    <!-- Analysis panel -->
+    <div class="analysis-panel">
+      <div class="analysis-hdr">
+        <div>
+          <div class="analysis-title">센서 데이터</div>
+          <div class="analysis-sub">AHU18 · 최근 7일 · 5분 간격 · 클릭하면 전체 차트 · 드래그하여 비교</div>
+        </div>
+        <div class="analysis-badge" id="analysis-badge">분석 준비 중</div>
+      </div>
+      <div class="analysis-vars" id="analysis-vars">
+        <div class="avar-loading">데이터 로딩 중...</div>
+      </div>
+      <div class="analysis-compare" id="analysis-compare">
+        <div class="compare-label">비교 분석</div>
+        <div class="compare-drop" id="compare-drop">
+          <div class="compare-empty" id="compare-empty">변수를 여기로 드래그하여 추가</div>
+          <div class="compare-chips" id="compare-chips"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Chart modal -->
+<div class="chart-modal" id="chart-modal">
+  <div class="chart-modal-backdrop"></div>
+  <div class="chart-modal-panel">
+    <div class="chart-modal-header">
+      <div>
+        <span class="chart-modal-title" id="chart-modal-title">—</span>
+        <span class="chart-modal-range">최근 7일</span>
+      </div>
+      <button class="chart-modal-close" id="chart-modal-close">×</button>
+    </div>
+    <div class="chart-modal-body" id="chart-modal-body"></div>
   </div>
 </div>`;
 }
+
+const KEY_MAP = {
+  supply_temp:     { key: 'supply_temp',     label: '공급 온도 (SDT)',     unit: '°C', color: '#2a6ef5' },
+  return_temp:     { key: 'return_temp',     label: '환수 온도 (RDT)',     unit: '°C', color: '#f05a5a' },
+  room_temp_left:  { key: 'room_temp_left',  label: '좌측 실내온도',       unit: '°C', color: '#00c48c' },
+  room_temp_right: { key: 'room_temp_right', label: '우측 실내온도',       unit: '°C', color: '#00c48c' },
+  room_humid_left: { key: 'outdoor_humidity', label: '외기 습도',           unit: '%',  color: '#9b6cf5' },
+};
 
 export function mount(el) {
   /* Thumbnail switcher */
@@ -288,4 +333,190 @@ export function mount(el) {
       });
     });
   });
+
+  /* Shared data loader */
+  let sensorData = null;
+  async function loadData() {
+    if (sensorData) return sensorData;
+    const res = await fetch(`${import.meta.env.BASE_URL}data/sensor_data.json`);
+    sensorData = await res.json();
+    return sensorData;
+  }
+
+  /* Chart modal */
+  const modal      = el.querySelector('#chart-modal');
+  const modalTitle = el.querySelector('#chart-modal-title');
+  const modalBody  = el.querySelector('#chart-modal-body');
+
+  async function openChart(dataKey) {
+    const cfg = KEY_MAP[dataKey];
+    if (!cfg) return;
+    modal.style.display = 'flex';
+    modalTitle.textContent = cfg.label;
+    modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#9aaac5">로딩 중...</div>';
+
+    try {
+      const data = await loadData();
+      renderChart(modalBody, {
+        timestamps: data.timestamps,
+        values:     data[cfg.key],
+        label:      cfg.label,
+        unit:       cfg.unit,
+        color:      cfg.color,
+      });
+    } catch {
+      modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#f05a5a">데이터 로드 실패</div>';
+    }
+  }
+
+  el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
+    const key = tag.dataset.key;
+    if (!KEY_MAP[key]) { tag.style.cursor = 'default'; tag.draggable = false; return; }
+    tag.addEventListener('click', () => openChart(key));
+    tag.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', key);
+      e.dataTransfer.effectAllowed = 'copy';
+      tag.classList.add('dragging');
+    });
+    tag.addEventListener('dragend', () => tag.classList.remove('dragging'));
+  });
+
+  el.querySelector('#chart-modal-close').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  el.querySelector('.chart-modal-backdrop').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') modal.style.display = 'none';
+  }, { once: false });
+
+  /* Analysis panel — mini sparkline cards + drag-and-drop compare */
+  const compareKeys = new Set();
+
+  function updateCompareBadge() {
+    const badge = el.querySelector('#analysis-badge');
+    const empty = el.querySelector('#compare-empty');
+    const n = compareKeys.size;
+    if (n === 0) {
+      badge.textContent = '분석 준비 중';
+      badge.classList.remove('badge-ready');
+      empty.style.display = '';
+    } else {
+      badge.textContent = n >= 2 ? `${n}개 변수 비교 준비` : `${n}개 선택됨`;
+      badge.classList.toggle('badge-ready', n >= 2);
+      empty.style.display = 'none';
+    }
+  }
+
+  function addCompareChip(tagKey, cfg) {
+    if (compareKeys.has(tagKey)) return;
+    compareKeys.add(tagKey);
+    const chips = el.querySelector('#compare-chips');
+    const chip = document.createElement('div');
+    chip.className = 'compare-chip';
+    chip.dataset.key = tagKey;
+    chip.style.setProperty('--chip-color', cfg.color);
+    chip.innerHTML = `
+      <span class="chip-dot"></span>
+      <span class="chip-label">${cfg.label}</span>
+      <span class="chip-unit">${cfg.unit}</span>
+      <button class="chip-remove" title="제거">×</button>`;
+    chip.querySelector('.chip-remove').addEventListener('click', e => {
+      e.stopPropagation();
+      compareKeys.delete(tagKey);
+      chip.remove();
+      el.querySelector(`.avar-card[data-key="${tagKey}"]`)?.classList.remove('selected');
+      updateCompareBadge();
+    });
+    chips.appendChild(chip);
+    el.querySelector(`.avar-card[data-key="${tagKey}"]`)?.classList.add('selected');
+    updateCompareBadge();
+  }
+
+  async function initAnalysisPanel() {
+    const container = el.querySelector('#analysis-vars');
+    try {
+      const data = await loadData();
+      const vars = Object.entries(KEY_MAP);
+
+      container.innerHTML = vars.map(([tagKey, cfg]) => {
+        const vals  = data[cfg.key].filter(v => v !== null);
+        const last  = vals.length ? vals[vals.length - 1].toFixed(1) : '—';
+        const min   = vals.length ? Math.min(...vals).toFixed(1) : '—';
+        const max   = vals.length ? Math.max(...vals).toFixed(1) : '—';
+        const avg   = vals.length ? (vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1) : '—';
+        return `
+        <div class="avar-card" data-key="${tagKey}" style="--avar-color:${cfg.color}" draggable="true">
+          <div class="avar-drag-hint">⠿</div>
+          <div class="avar-top">
+            <span class="avar-label">${cfg.label}</span>
+            <span class="avar-unit">${cfg.unit}</span>
+          </div>
+          <div class="avar-spark" id="spark-${tagKey}"></div>
+          <div class="avar-stats">
+            <div class="avar-stat-item">
+              <span class="avar-stat-lbl">현재</span>
+              <span class="avar-stat-val" style="color:${cfg.color}">${last}</span>
+            </div>
+            <div class="avar-stat-item">
+              <span class="avar-stat-lbl">평균</span>
+              <span class="avar-stat-val">${avg}</span>
+            </div>
+            <div class="avar-stat-item">
+              <span class="avar-stat-lbl">범위</span>
+              <span class="avar-stat-val">${min}–${max}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+
+      vars.forEach(([tagKey, cfg]) => {
+        renderSparkline(el.querySelector(`#spark-${tagKey}`), { values: data[cfg.key], color: cfg.color });
+      });
+
+      /* Drag handlers on cards */
+      container.querySelectorAll('.avar-card').forEach(card => {
+        card.addEventListener('click', () => openChart(card.dataset.key));
+        card.addEventListener('dragstart', e => {
+          e.dataTransfer.setData('text/plain', card.dataset.key);
+          e.dataTransfer.effectAllowed = 'copy';
+          card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+      });
+
+      /* Analysis panel = drop target (entire panel, not just compare zone) */
+      const analysisPanel = el.querySelector('.analysis-panel');
+      let dragDepth = 0;
+
+      analysisPanel.addEventListener('dragenter', e => {
+        if (!e.dataTransfer.types.includes('text/plain')) return;
+        e.preventDefault();
+        dragDepth++;
+        analysisPanel.classList.add('drag-target');
+      });
+      analysisPanel.addEventListener('dragleave', () => {
+        dragDepth--;
+        if (dragDepth <= 0) { dragDepth = 0; analysisPanel.classList.remove('drag-target'); }
+      });
+      analysisPanel.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      });
+      analysisPanel.addEventListener('drop', e => {
+        e.preventDefault();
+        dragDepth = 0;
+        analysisPanel.classList.remove('drag-target');
+        const tagKey = e.dataTransfer.getData('text/plain');
+        const cfg = KEY_MAP[tagKey];
+        if (cfg) addCompareChip(tagKey, cfg);
+      });
+
+    } catch {
+      container.innerHTML = '<div class="avar-loading" style="color:#f05a5a">데이터 로드 실패</div>';
+    }
+  }
+
+  initAnalysisPanel();
 }
