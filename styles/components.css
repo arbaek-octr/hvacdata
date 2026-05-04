@@ -321,6 +321,14 @@
   margin-top: 4px;
   font-size: 9px;
   color: var(--text-dim);
+  gap: 4px;
+}
+.cw-author {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.cw-dot {
+  margin: 0 2px;
 }
 
 .cw-del {
@@ -339,14 +347,18 @@
 
 .cw-form {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 10px 12px;
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-base);
 }
+.cw-form-row {
+  display: flex;
+  gap: 6px;
+}
 
 .cw-input {
-  flex: 1;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--r-md);
@@ -362,6 +374,21 @@
 .cw-input:focus { outline: none; border-color: var(--blue-primary); }
 .cw-input::placeholder { color: var(--text-dim); }
 
+.cw-name {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  padding: 0 10px;
+  font-size: 11px;
+  color: var(--text-primary);
+  font-family: inherit;
+  height: 30px;
+  transition: border-color .15s;
+}
+.cw-name:focus { outline: none; border-color: var(--blue-primary); }
+.cw-name::placeholder { color: var(--text-dim); }
+
 .cw-submit {
   background: var(--blue-primary);
   border: none;
@@ -372,6 +399,7 @@
   padding: 0 12px;
   cursor: pointer;
   white-space: nowrap;
+  height: 30px;
   transition: background .15s;
 }
 .cw-submit:hover { background: var(--blue-bright); }
