@@ -12,13 +12,15 @@
      W.FCU.{fcu}F.L.FCV    → W.FCU.10F.L.FCV
    ═══════════════════════════════════════ */
 
-export const ZONE_PARAMS = [
-  { zoneId: 'zone-9',  label: '9층',  ahu: 9,  fcu: 10 },
-  { zoneId: 'zone-10', label: '10층', ahu: 10, fcu: 11 },
-  { zoneId: 'zone-11', label: '11층', ahu: 11, fcu: 12 },
-  { zoneId: 'zone-12', label: '12층', ahu: 12, fcu: 13 },
-  // 필요한 층 추가
-];
+// ahu 번호만 지정하면 fcu = ahu + 1 자동 계산
+const AHU_LIST = [9, 10, 11, 12]; // 사용하는 AHU 번호 목록
+
+export const ZONE_PARAMS = AHU_LIST.map(ahu => ({
+  zoneId: `zone-${ahu}`,
+  label:  `${ahu}층`,
+  ahu,
+  fcu: ahu + 1,  // FCU 층번호는 항상 AHU + 1
+}));
 
 /**
  * 템플릿 변수명을 특정 층 파라미터로 치환
