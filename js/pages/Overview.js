@@ -562,6 +562,10 @@ export function mount(el) {
     });
     if (!localStorage.getItem(ctKey(src)) && isAhu) {
       saveCustomTags(src, DEFAULT_CUSTOM_TAGS);
+      el.querySelectorAll('.data-tag[data-key]').forEach(t => {
+        hideTag(t.dataset.key);
+        hiddenKeys.add(t.dataset.key);
+      });
     }
     loadCustomTags(src).forEach(ct => {
       const tagEl = createCustomTagEl(ct);
