@@ -85,45 +85,63 @@
   transform: translateX(-50%) translateY(0);
 }
 
-/* Tag edit button */
-.tag-edit-btn {
+/* Chart / Edit mode toggle */
+.viewer-mode-toggle {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 10;
-  background: rgba(20, 28, 48, 0.75);
+  display: flex;
+  gap: 2px;
+  background: rgba(14, 22, 40, 0.78);
   border: 1px solid var(--border-default);
   border-radius: var(--r-md);
-  color: var(--text-dim);
-  font-size: 14px;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  padding: 3px;
+  backdrop-filter: blur(8px);
   opacity: 0;
-  transition: opacity .2s, background .2s, color .2s;
-  backdrop-filter: blur(6px);
+  transition: opacity .2s;
 }
-.viewer-frame:hover .tag-edit-btn { opacity: 1; }
-.tag-edit-btn.active {
-  background: var(--blue-primary);
-  border-color: var(--blue-primary);
-  color: #fff;
-  opacity: 1;
+.viewer-frame:hover .viewer-mode-toggle { opacity: 1; }
+.vmt-btn {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 10px;
+  cursor: pointer;
+  letter-spacing: .3px;
+  transition: background .15s, color .15s;
 }
+.vmt-btn.active { background: var(--blue-primary); color: #fff; }
 
-/* Edit mode — tags show dashed outline and move cursor */
+/* edit 모드일 때 태그 테두리 표시 */
 .viewer-frame.tag-edit-mode .data-tag {
-  cursor: move !important;
   outline: 1.5px dashed var(--blue-primary);
   outline-offset: 2px;
 }
+
+/* Tag drag & value edit */
+.data-tag { cursor: grab; }
 .data-tag.tag-moving {
-  opacity: 0.8;
+  cursor: grabbing;
+  opacity: 0.85;
   z-index: 100;
-  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+  box-shadow: 0 4px 20px rgba(0,0,0,.45);
+}
+.dt-val-input {
+  width: 52px;
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid rgba(255,255,255,0.8);
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-family: inherit;
+  text-align: center;
+  outline: none;
+  padding: 0;
 }
 
 /* ══════════════════════════════
