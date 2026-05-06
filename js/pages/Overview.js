@@ -200,9 +200,10 @@ export function render() {
           </div>
           <div class="tag-add-form" id="tag-add-form" style="display:none">
             <div class="taf-title">새 태그 추가</div>
-            <input class="taf-input" id="taf-label" placeholder="라벨 (예: 공급온도)">
+            <input class="taf-input" id="taf-label" placeholder="라벨 (예: 배기댐퍼)">
+            <input class="taf-input" id="taf-varname" placeholder="변수명 (예: W.AHU9.OADM)">
             <div class="taf-row">
-              <input class="taf-input" id="taf-value" placeholder="값 (예: 24.0)">
+              <input class="taf-input" id="taf-value" placeholder="값 (예: 0.0)">
               <input class="taf-input taf-unit" id="taf-unit" placeholder="단위">
             </div>
             <div class="taf-btns">
@@ -543,6 +544,7 @@ export function mount(el) {
   const tagAddBtn  = el.querySelector('#tag-add-btn');
   const tagAddForm = el.querySelector('#tag-add-form');
   const tafLabel   = el.querySelector('#taf-label');
+  const tafVarname = el.querySelector('#taf-varname');
   const tafValue   = el.querySelector('#taf-value');
   const tafUnit    = el.querySelector('#taf-unit');
 
@@ -568,25 +570,26 @@ export function mount(el) {
 
   el.querySelector('#taf-cancel').addEventListener('click', () => {
     tagAddForm.style.display = 'none';
-    tafLabel.value = ''; tafValue.value = ''; tafUnit.value = '';
+    tafLabel.value = ''; tafVarname.value = ''; tafValue.value = ''; tafUnit.value = '';
   });
 
   function submitAddTag() {
-    const label = tafLabel.value.trim();
-    const value = tafValue.value.trim();
-    const unit  = tafUnit.value.trim();
+    const label   = tafLabel.value.trim();
+    const varname = tafVarname.value.trim();
+    const value   = tafValue.value.trim();
+    const unit    = tafUnit.value.trim();
     if (!label && !value) return;
-    const ct = { id: 'c' + Date.now().toString(36), label: label || '태그', value: value || '-', unit, x: '50%', y: '40%' };
+    const ct = { id: 'c' + Date.now().toString(36), label: label || '태그', varname, value: value || '-', unit, x: '50%', y: '40%' };
     const ts = loadCustomTags(); ts.push(ct); saveCustomTags(ts);
     const tagEl = createCustomTagEl(ct);
     viewerFrame.appendChild(tagEl);
     attachCustomTagEvents(tagEl);
     tagAddForm.style.display = 'none';
-    tafLabel.value = ''; tafValue.value = ''; tafUnit.value = '';
+    tafLabel.value = ''; tafVarname.value = ''; tafValue.value = ''; tafUnit.value = '';
   }
 
   el.querySelector('#taf-ok').addEventListener('click', submitAddTag);
-  [tafLabel, tafValue, tafUnit].forEach(inp =>
+  [tafLabel, tafVarname, tafValue, tafUnit].forEach(inp =>
     inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') submitAddTag(); })
   );
 
