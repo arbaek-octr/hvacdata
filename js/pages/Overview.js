@@ -52,6 +52,7 @@ function dataTag({ key, label, value, unit, x, y, type }) {
   <div class="data-tag dt-${type}" style="left:${x};top:${y}" data-key="${key}" draggable="true">
     <span class="dt-val">${value}</span><span class="dt-unit">${unit}</span>
     <div class="dt-label">${label}</div>
+    <button class="dt-del" title="숨기기">×</button>
   </div>`;
 }
 
@@ -337,19 +338,24 @@ const KEY_MAP = {
 const TAG_POS_KEY      = 'hvac-tag-positions';
 const TAG_OVERRIDE_KEY = 'hvac-tag-overrides';
 const CUSTOM_TAGS_KEY  = 'hvac-custom-tags';
+const HIDDEN_TAGS_KEY  = 'hvac-hidden-tags';
 function loadTagPos()      { try { return JSON.parse(localStorage.getItem(TAG_POS_KEY)      || '{}'); } catch { return {}; } }
 function saveTagPos(key, left, top) { const p = loadTagPos(); p[key] = { left, top }; localStorage.setItem(TAG_POS_KEY, JSON.stringify(p)); }
 function loadOverrides()   { try { return JSON.parse(localStorage.getItem(TAG_OVERRIDE_KEY) || '{}'); } catch { return {}; } }
 function saveOverride(key, val) { const o = loadOverrides(); o[key] = val; localStorage.setItem(TAG_OVERRIDE_KEY, JSON.stringify(o)); }
 function loadCustomTags()  { try { return JSON.parse(localStorage.getItem(CUSTOM_TAGS_KEY)  || '[]'); } catch { return []; } }
 function saveCustomTags(tags) { localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(tags)); }
+function loadHidden()     { try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_TAGS_KEY) || '[]')); } catch { return new Set(); } }
+function hideTag(key)     { const s = loadHidden(); s.add(key); localStorage.setItem(HIDDEN_TAGS_KEY, JSON.stringify([...s])); }
 
 export function mount(el) {
-  /* Apply saved tag positions & value overrides */
+  /* Apply saved positions, overrides, hidden state */
   const tagPositions = loadTagPos();
   const tagOverrides = loadOverrides();
+  const hiddenKeys   = loadHidden();
   el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
     const key = tag.dataset.key;
+    if (hiddenKeys.has(key)) { tag.style.display = 'none'; return; }
     const p = tagPositions[key];
     if (p) { tag.style.left = p.left; tag.style.top = p.top; }
     if (tagOverrides[key] !== undefined) {
@@ -481,6 +487,12 @@ export function mount(el) {
       e.stopPropagation();
       const valEl = tag.querySelector('.dt-val');
       if (valEl) editInline(valEl, 'dt-val-input', next => saveOverride(key, next));
+    });
+
+    tag.querySelector('.dt-del').addEventListener('click', e => {
+      e.stopPropagation();
+      hideTag(key);
+      tag.style.display = 'none';
     });
   });
 
