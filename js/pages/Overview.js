@@ -191,6 +191,10 @@ export function render() {
           <div class="viewer-status-badge">
             <span class="vstatus-dot"></span>시스템 정상 가동
           </div>
+          <div class="viewer-mode-toggle">
+            <button class="vmt-btn active" data-mode="chart">차트</button>
+            <button class="vmt-btn" data-mode="edit">편집</button>
+          </div>
         </div>
         ${pipeGroup(ahuOverlay.pipe)}
         <div class="viewer-thumbs">
@@ -312,7 +316,27 @@ const KEY_MAP = {
   room_humid_left: { key: 'outdoor_humidity', label: '외기 습도',           unit: '%',  color: '#9b6cf5' },
 };
 
+const TAG_POS_KEY      = 'hvac-tag-positions';
+const TAG_OVERRIDE_KEY = 'hvac-tag-overrides';
+function loadTagPos()    { try { return JSON.parse(localStorage.getItem(TAG_POS_KEY)      || '{}'); } catch { return {}; } }
+function saveTagPos(key, left, top) { const p = loadTagPos(); p[key] = { left, top }; localStorage.setItem(TAG_POS_KEY, JSON.stringify(p)); }
+function loadOverrides() { try { return JSON.parse(localStorage.getItem(TAG_OVERRIDE_KEY) || '{}'); } catch { return {}; } }
+function saveOverride(key, val) { const o = loadOverrides(); o[key] = val; localStorage.setItem(TAG_OVERRIDE_KEY, JSON.stringify(o)); }
+
 export function mount(el) {
+  /* Apply saved tag positions & value overrides */
+  const tagPositions = loadTagPos();
+  const tagOverrides = loadOverrides();
+  el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
+    const key = tag.dataset.key;
+    const p = tagPositions[key];
+    if (p) { tag.style.left = p.left; tag.style.top = p.top; }
+    if (tagOverrides[key] !== undefined) {
+      const valEl = tag.querySelector('.dt-val');
+      if (valEl) valEl.textContent = tagOverrides[key];
+    }
+  });
+
   /* Thumbnail switcher */
   const mainImg = el.querySelector('#viewer-main-img');
   el.querySelectorAll('.vthumb').forEach(thumb => {
@@ -369,16 +393,89 @@ export function mount(el) {
     }
   }
 
+  /* 차트 / 편집 모드 토글 */
+  const viewerFrame = el.querySelector('.viewer-frame');
+  let viewerMode = 'chart';
+  el.querySelectorAll('.vmt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      viewerMode = btn.dataset.mode;
+      el.querySelectorAll('.vmt-btn').forEach(b => b.classList.toggle('active', b === btn));
+      viewerFrame.classList.toggle('tag-edit-mode', viewerMode === 'edit');
+    });
+  });
+
+  /* Tag interactions: drag=위치이동 / chart모드=클릭차트 / edit모드=더블클릭편집 */
+  let dragTag = null, dragStartX, dragStartY, dragOrigLeft, dragOrigTop, didMove;
+
   el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
     const key = tag.dataset.key;
-    if (!KEY_MAP[key]) { tag.style.cursor = 'default'; tag.draggable = false; return; }
-    tag.addEventListener('click', () => openChart(key));
-    tag.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('text/plain', key);
-      e.dataTransfer.effectAllowed = 'copy';
-      tag.classList.add('dragging');
+    tag.draggable = false;
+
+    tag.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      dragTag = tag;
+      didMove = false;
+      const rect = viewerFrame.getBoundingClientRect();
+      dragStartX   = e.clientX;
+      dragStartY   = e.clientY;
+      dragOrigLeft = (parseFloat(tag.style.left) / 100) * rect.width;
+      dragOrigTop  = (parseFloat(tag.style.top)  / 100) * rect.height;
     });
-    tag.addEventListener('dragend', () => tag.classList.remove('dragging'));
+
+    tag.addEventListener('click', () => {
+      if (didMove) return;
+      if (viewerMode === 'chart' && KEY_MAP[key]) openChart(key);
+    });
+
+    tag.addEventListener('dblclick', e => {
+      if (viewerMode !== 'edit') return;
+      e.stopPropagation();
+      const valEl = tag.querySelector('.dt-val');
+      if (!valEl) return;
+      const prev = valEl.textContent;
+      const input = document.createElement('input');
+      input.className = 'dt-val-input';
+      input.value = prev;
+      valEl.replaceWith(input);
+      input.focus();
+      input.select();
+      function commit() {
+        const next = input.value.trim() || prev;
+        const span = document.createElement('span');
+        span.className = 'dt-val';
+        span.textContent = next;
+        input.replaceWith(span);
+        saveOverride(key, next);
+      }
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter')  { ev.preventDefault(); input.blur(); }
+        if (ev.key === 'Escape') { input.value = prev;  input.blur(); }
+      });
+    });
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragTag) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    if (!didMove && Math.hypot(dx, dy) < 5) return;
+    if (!didMove) { didMove = true; dragTag.classList.add('tag-moving'); }
+    const rect = viewerFrame.getBoundingClientRect();
+    const newLeft = Math.max(0, Math.min(95, ((dragOrigLeft + dx) / rect.width)  * 100));
+    const newTop  = Math.max(0, Math.min(95, ((dragOrigTop  + dy) / rect.height) * 100));
+    dragTag.style.left = `${newLeft.toFixed(1)}%`;
+    dragTag.style.top  = `${newTop.toFixed(1)}%`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragTag) return;
+    if (didMove) {
+      saveTagPos(dragTag.dataset.key, dragTag.style.left, dragTag.style.top);
+      dragTag.classList.remove('tag-moving');
+    }
+    dragTag = null;
   });
 
   el.querySelector('#chart-modal-close').addEventListener('click', () => {
