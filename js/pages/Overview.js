@@ -194,6 +194,20 @@ export function render() {
           <div class="viewer-mode-toggle">
             <button class="vmt-btn active" data-mode="chart">차트</button>
             <button class="vmt-btn" data-mode="edit">편집</button>
+            <div class="vmt-sep"></div>
+            <button class="vmt-btn vmt-add" id="tag-add-btn">＋ 태그</button>
+          </div>
+          <div class="tag-add-form" id="tag-add-form" style="display:none">
+            <div class="taf-title">새 태그 추가</div>
+            <input class="taf-input" id="taf-label" placeholder="라벨 (예: 공급온도)">
+            <div class="taf-row">
+              <input class="taf-input" id="taf-value" placeholder="값 (예: 24.0)">
+              <input class="taf-input taf-unit" id="taf-unit" placeholder="단위">
+            </div>
+            <div class="taf-btns">
+              <button class="taf-cancel" id="taf-cancel">취소</button>
+              <button class="taf-ok" id="taf-ok">추가</button>
+            </div>
           </div>
         </div>
         ${pipeGroup(ahuOverlay.pipe)}
@@ -318,10 +332,13 @@ const KEY_MAP = {
 
 const TAG_POS_KEY      = 'hvac-tag-positions';
 const TAG_OVERRIDE_KEY = 'hvac-tag-overrides';
-function loadTagPos()    { try { return JSON.parse(localStorage.getItem(TAG_POS_KEY)      || '{}'); } catch { return {}; } }
+const CUSTOM_TAGS_KEY  = 'hvac-custom-tags';
+function loadTagPos()      { try { return JSON.parse(localStorage.getItem(TAG_POS_KEY)      || '{}'); } catch { return {}; } }
 function saveTagPos(key, left, top) { const p = loadTagPos(); p[key] = { left, top }; localStorage.setItem(TAG_POS_KEY, JSON.stringify(p)); }
-function loadOverrides() { try { return JSON.parse(localStorage.getItem(TAG_OVERRIDE_KEY) || '{}'); } catch { return {}; } }
+function loadOverrides()   { try { return JSON.parse(localStorage.getItem(TAG_OVERRIDE_KEY) || '{}'); } catch { return {}; } }
 function saveOverride(key, val) { const o = loadOverrides(); o[key] = val; localStorage.setItem(TAG_OVERRIDE_KEY, JSON.stringify(o)); }
+function loadCustomTags()  { try { return JSON.parse(localStorage.getItem(CUSTOM_TAGS_KEY)  || '[]'); } catch { return []; } }
+function saveCustomTags(tags) { localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(tags)); }
 
 export function mount(el) {
   /* Apply saved tag positions & value overrides */
@@ -396,17 +413,50 @@ export function mount(el) {
   /* 차트 / 편집 모드 토글 */
   const viewerFrame = el.querySelector('.viewer-frame');
   let viewerMode = 'chart';
-  el.querySelectorAll('.vmt-btn').forEach(btn => {
+  el.querySelectorAll('.vmt-btn[data-mode]').forEach(btn => {
     btn.addEventListener('click', () => {
       viewerMode = btn.dataset.mode;
-      el.querySelectorAll('.vmt-btn').forEach(b => b.classList.toggle('active', b === btn));
+      el.querySelectorAll('.vmt-btn[data-mode]').forEach(b => b.classList.toggle('active', b === btn));
       viewerFrame.classList.toggle('tag-edit-mode', viewerMode === 'edit');
     });
   });
 
-  /* Tag interactions: drag=위치이동 / chart모드=클릭차트 / edit모드=더블클릭편집 */
+  /* Shared drag state */
   let dragTag = null, dragStartX, dragStartY, dragOrigLeft, dragOrigTop, didMove;
 
+  function startDrag(tag, e) {
+    dragTag = tag;
+    didMove = false;
+    const rect = viewerFrame.getBoundingClientRect();
+    dragStartX   = e.clientX;
+    dragStartY   = e.clientY;
+    dragOrigLeft = (parseFloat(tag.style.left) / 100) * rect.width;
+    dragOrigTop  = (parseFloat(tag.style.top)  / 100) * rect.height;
+  }
+
+  function editInline(el, className, onSave) {
+    const prev = el.textContent;
+    const input = document.createElement('input');
+    input.className = className;
+    input.value = prev;
+    el.replaceWith(input);
+    input.focus(); input.select();
+    function commit() {
+      const next = input.value.trim() || prev;
+      const node = document.createElement(className === 'dt-val-input' ? 'span' : 'div');
+      node.className = className === 'dt-val-input' ? 'dt-val' : 'dt-label';
+      node.textContent = next;
+      input.replaceWith(node);
+      onSave(next, node);
+    }
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter')  { ev.preventDefault(); input.blur(); }
+      if (ev.key === 'Escape') { input.value = prev;  input.blur(); }
+    });
+  }
+
+  /* Default tag interactions */
   el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
     const key = tag.dataset.key;
     tag.draggable = false;
@@ -414,13 +464,7 @@ export function mount(el) {
     tag.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       e.preventDefault();
-      dragTag = tag;
-      didMove = false;
-      const rect = viewerFrame.getBoundingClientRect();
-      dragStartX   = e.clientX;
-      dragStartY   = e.clientY;
-      dragOrigLeft = (parseFloat(tag.style.left) / 100) * rect.width;
-      dragOrigTop  = (parseFloat(tag.style.top)  / 100) * rect.height;
+      startDrag(tag, e);
     });
 
     tag.addEventListener('click', () => {
@@ -432,47 +476,126 @@ export function mount(el) {
       if (viewerMode !== 'edit') return;
       e.stopPropagation();
       const valEl = tag.querySelector('.dt-val');
-      if (!valEl) return;
-      const prev = valEl.textContent;
-      const input = document.createElement('input');
-      input.className = 'dt-val-input';
-      input.value = prev;
-      valEl.replaceWith(input);
-      input.focus();
-      input.select();
-      function commit() {
-        const next = input.value.trim() || prev;
-        const span = document.createElement('span');
-        span.className = 'dt-val';
-        span.textContent = next;
-        input.replaceWith(span);
-        saveOverride(key, next);
-      }
-      input.addEventListener('blur', commit);
-      input.addEventListener('keydown', ev => {
-        if (ev.key === 'Enter')  { ev.preventDefault(); input.blur(); }
-        if (ev.key === 'Escape') { input.value = prev;  input.blur(); }
-      });
+      if (valEl) editInline(valEl, 'dt-val-input', next => saveOverride(key, next));
     });
   });
 
+  /* Custom tag helpers */
+  function createCustomTagEl(ct) {
+    const div = document.createElement('div');
+    div.className = 'data-tag dt-custom';
+    div.style.left = ct.x || '50%';
+    div.style.top  = ct.y || '40%';
+    div.dataset.customId = ct.id;
+    div.innerHTML = `
+      <span class="dt-val">${ct.value}</span><span class="dt-unit">${ct.unit}</span>
+      <div class="dt-label">${ct.label}</div>
+      <button class="dt-del" title="삭제">×</button>`;
+    return div;
+  }
+
+  function attachCustomTagEvents(tag) {
+    const id = tag.dataset.customId;
+    tag.draggable = false;
+
+    tag.addEventListener('mousedown', e => {
+      if (e.button !== 0 || e.target.classList.contains('dt-del')) return;
+      e.preventDefault();
+      startDrag(tag, e);
+    });
+
+    tag.addEventListener('dblclick', e => {
+      if (viewerMode !== 'edit') return;
+      e.stopPropagation();
+      const valEl = tag.querySelector('.dt-val');
+      if (valEl) editInline(valEl, 'dt-val-input', next => {
+        const ts = loadCustomTags(); const t = ts.find(t => t.id === id);
+        if (t) { t.value = next; saveCustomTags(ts); }
+      });
+    });
+
+    tag.querySelector('.dt-label').addEventListener('click', e => {
+      if (viewerMode !== 'edit') return;
+      e.stopPropagation();
+      const lblEl = tag.querySelector('.dt-label');
+      if (lblEl) editInline(lblEl, 'dt-label-input', next => {
+        const ts = loadCustomTags(); const t = ts.find(t => t.id === id);
+        if (t) { t.label = next; saveCustomTags(ts); }
+      });
+    });
+
+    tag.querySelector('.dt-del').addEventListener('click', e => {
+      e.stopPropagation();
+      saveCustomTags(loadCustomTags().filter(t => t.id !== id));
+      tag.remove();
+    });
+  }
+
+  /* Render saved custom tags */
+  loadCustomTags().forEach(ct => {
+    const tagEl = createCustomTagEl(ct);
+    viewerFrame.appendChild(tagEl);
+    attachCustomTagEvents(tagEl);
+  });
+
+  /* + 태그 버튼 */
+  const tagAddBtn  = el.querySelector('#tag-add-btn');
+  const tagAddForm = el.querySelector('#tag-add-form');
+  const tafLabel   = el.querySelector('#taf-label');
+  const tafValue   = el.querySelector('#taf-value');
+  const tafUnit    = el.querySelector('#taf-unit');
+
+  tagAddBtn.addEventListener('click', () => {
+    const open = tagAddForm.style.display !== 'none';
+    tagAddForm.style.display = open ? 'none' : 'flex';
+    if (!open) tafLabel.focus();
+  });
+
+  el.querySelector('#taf-cancel').addEventListener('click', () => {
+    tagAddForm.style.display = 'none';
+    tafLabel.value = ''; tafValue.value = ''; tafUnit.value = '';
+  });
+
+  function submitAddTag() {
+    const label = tafLabel.value.trim();
+    const value = tafValue.value.trim();
+    const unit  = tafUnit.value.trim();
+    if (!label && !value) return;
+    const ct = { id: 'c' + Date.now().toString(36), label: label || '태그', value: value || '-', unit, x: '50%', y: '40%' };
+    const ts = loadCustomTags(); ts.push(ct); saveCustomTags(ts);
+    const tagEl = createCustomTagEl(ct);
+    viewerFrame.appendChild(tagEl);
+    attachCustomTagEvents(tagEl);
+    tagAddForm.style.display = 'none';
+    tafLabel.value = ''; tafValue.value = ''; tafUnit.value = '';
+  }
+
+  el.querySelector('#taf-ok').addEventListener('click', submitAddTag);
+  [tafLabel, tafValue, tafUnit].forEach(inp =>
+    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') submitAddTag(); })
+  );
+
+  /* Shared drag handlers */
   document.addEventListener('mousemove', e => {
     if (!dragTag) return;
-    const dx = e.clientX - dragStartX;
-    const dy = e.clientY - dragStartY;
+    const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
     if (!didMove && Math.hypot(dx, dy) < 5) return;
     if (!didMove) { didMove = true; dragTag.classList.add('tag-moving'); }
     const rect = viewerFrame.getBoundingClientRect();
-    const newLeft = Math.max(0, Math.min(95, ((dragOrigLeft + dx) / rect.width)  * 100));
-    const newTop  = Math.max(0, Math.min(95, ((dragOrigTop  + dy) / rect.height) * 100));
-    dragTag.style.left = `${newLeft.toFixed(1)}%`;
-    dragTag.style.top  = `${newTop.toFixed(1)}%`;
+    dragTag.style.left = `${Math.max(0, Math.min(95, ((dragOrigLeft + dx) / rect.width)  * 100)).toFixed(1)}%`;
+    dragTag.style.top  = `${Math.max(0, Math.min(95, ((dragOrigTop  + dy) / rect.height) * 100)).toFixed(1)}%`;
   });
 
   document.addEventListener('mouseup', () => {
     if (!dragTag) return;
     if (didMove) {
-      saveTagPos(dragTag.dataset.key, dragTag.style.left, dragTag.style.top);
+      const key = dragTag.dataset.key, cid = dragTag.dataset.customId;
+      if (key) {
+        saveTagPos(key, dragTag.style.left, dragTag.style.top);
+      } else if (cid) {
+        const ts = loadCustomTags(), t = ts.find(t => t.id === cid);
+        if (t) { t.x = dragTag.style.left; t.y = dragTag.style.top; saveCustomTags(ts); }
+      }
       dragTag.classList.remove('tag-moving');
     }
     dragTag = null;
