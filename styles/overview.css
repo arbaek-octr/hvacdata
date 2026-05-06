@@ -126,6 +126,8 @@
 .vmt-sep { width: 1px; background: var(--border-default); margin: 3px 1px; }
 .vmt-add { color: var(--blue-primary) !important; }
 .vmt-add:hover { background: rgba(74,144,226,.15); color: var(--blue-bright) !important; }
+.vmt-export { color: var(--text-secondary) !important; }
+.vmt-export:hover { background: rgba(255,255,255,.08); color: var(--text-primary) !important; }
 
 /* 태그 추가 폼 */
 .tag-add-form {

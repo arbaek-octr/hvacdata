@@ -196,6 +196,7 @@ export function render() {
             <button class="vmt-btn" data-mode="edit">편집</button>
             <div class="vmt-sep"></div>
             <button class="vmt-btn vmt-add" id="tag-add-btn">＋ 태그</button>
+            <button class="vmt-btn vmt-export" id="tag-export-btn" title="태그 설정 내보내기">↓ 내보내기</button>
           </div>
           <div class="tag-add-form" id="tag-add-form" style="display:none">
             <div class="taf-title">새 태그 추가</div>
@@ -544,6 +545,20 @@ export function mount(el) {
   const tafLabel   = el.querySelector('#taf-label');
   const tafValue   = el.querySelector('#taf-value');
   const tafUnit    = el.querySelector('#taf-unit');
+
+  el.querySelector('#tag-export-btn').addEventListener('click', () => {
+    const data = {
+      positions: loadTagPos(),
+      overrides: loadOverrides(),
+      custom:    loadCustomTags(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `hvac-tags-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
 
   tagAddBtn.addEventListener('click', () => {
     const open = tagAddForm.style.display !== 'none';
