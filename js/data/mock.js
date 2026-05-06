@@ -126,12 +126,12 @@ export const ahuOverlay = {
   /* 항상 표시되는 값 라벨 (data-tag) */
   tags: [
     /* 상단 측정 포인트 (AHU 상부 센서 스틱) */
-    { key: 'room_temp_left',  label: '좌측 실내온도', value: '23.5', unit: '°C', x: '39%', y: '13%', type: 'temp'  },
-    { key: 'room_humid_left', label: '좌측 습도',     value: '70.1', unit: '%',  x: '45%', y: '13%', type: 'humid' },
-    { key: 'room_temp_right', label: '우측 실내온도', value: '23.9', unit: '°C', x: '76%', y: '13%', type: 'temp'  },
+    { key: 'room_temp_left',  label: '좌측 실내온도', value: '23.5', unit: '°C', x: '59.3%', y: '42.8%', type: 'temp'  },
+    { key: 'room_humid_left', label: '좌측 습도',     value: '70.1', unit: '%',  x: '45%',   y: '13%',   type: 'humid' },
+    { key: 'room_temp_right', label: '우측 실내온도', value: '23.9', unit: '°C', x: '72.2%', y: '26.2%', type: 'temp'  },
     /* 하부 AHU 덕트 내 측정 포인트 */
-    { key: 'supply_temp',     label: '공급온도',       value: '24.0', unit: '°C', x: '40%', y: '55%', type: 'temp'  },
-    { key: 'return_temp',     label: '환수온도',       value: '20.4', unit: '°C', x: '63%', y: '55%', type: 'temp'  },
+    { key: 'supply_temp',     label: '공급온도',       value: '24.0', unit: '°C', x: '35.9%', y: '59.1%', type: 'temp'  },
+    { key: 'return_temp',     label: '환수온도',       value: '20.4', unit: '°C', x: '56%',   y: '68.9%', type: 'temp'  },
     /* 댐퍼 — EA/OA 개구부 근처 */
     { key: 'ea_damper',       label: 'EA 댐퍼',        value: '0.0',  unit: '%',  x: '16%', y: '38%', type: 'valve' },
     { key: 'oa_damper',       label: 'OA 댐퍼',        value: '0.0',  unit: '%',  x: '16%', y: '60%', type: 'valve' },

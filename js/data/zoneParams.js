@@ -13,7 +13,7 @@
    ═══════════════════════════════════════ */
 
 // ahu 번호만 지정하면 fcu = ahu + 1 자동 계산
-const AHU_LIST = [9, 10, 11, 12]; // 사용하는 AHU 번호 목록
+const AHU_LIST = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]; // 사용하는 AHU 번호 목록 // DDC04-2: AHU3, FCU4 // DDC05: AHU4, FCU5 ~ DDC19: AHU18, FCU19 // DDC20-2: AHU19, FCU20
 
 export const ZONE_PARAMS = AHU_LIST.map(ahu => ({
   zoneId: `zone-${ahu}`,
@@ -31,9 +31,9 @@ export const ZONE_PARAMS = AHU_LIST.map(ahu => ({
 export function resolveVarname(template, params) {
   if (!template) return '';
   return template
-    .replace(/\{ahu\}/g,   params.ahu   ?? '{ahu}')
-    .replace(/\{fcu\}/g,   params.fcu   ?? '{fcu}')
-    .replace(/\{floor\}/g, params.floor ?? '{floor}');
+    .replace(/\{ahu\}/gi,   params.ahu   ?? '{ahu}')
+    .replace(/\{fcu\}/gi,   params.fcu   ?? '{fcu}')
+    .replace(/\{floor\}/gi, params.floor ?? '{floor}');
 }
 
 /**
