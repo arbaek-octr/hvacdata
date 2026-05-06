@@ -85,6 +85,47 @@
   transform: translateX(-50%) translateY(0);
 }
 
+/* Tag edit button */
+.tag-edit-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  background: rgba(20, 28, 48, 0.75);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  color: var(--text-dim);
+  font-size: 14px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .2s, background .2s, color .2s;
+  backdrop-filter: blur(6px);
+}
+.viewer-frame:hover .tag-edit-btn { opacity: 1; }
+.tag-edit-btn.active {
+  background: var(--blue-primary);
+  border-color: var(--blue-primary);
+  color: #fff;
+  opacity: 1;
+}
+
+/* Edit mode — tags show dashed outline and move cursor */
+.viewer-frame.tag-edit-mode .data-tag {
+  cursor: move !important;
+  outline: 1.5px dashed var(--blue-primary);
+  outline-offset: 2px;
+}
+.data-tag.tag-moving {
+  opacity: 0.8;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+
 /* ══════════════════════════════
    Data tags — always-visible overlays
    ══════════════════════════════ */

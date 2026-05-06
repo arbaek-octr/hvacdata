@@ -191,6 +191,7 @@ export function render() {
           <div class="viewer-status-badge">
             <span class="vstatus-dot"></span>시스템 정상 가동
           </div>
+          <button class="tag-edit-btn" id="tag-edit-btn" title="태그 위치 편집">✎</button>
         </div>
         ${pipeGroup(ahuOverlay.pipe)}
         <div class="viewer-thumbs">
@@ -312,7 +313,18 @@ const KEY_MAP = {
   room_humid_left: { key: 'outdoor_humidity', label: '외기 습도',           unit: '%',  color: '#9b6cf5' },
 };
 
+const TAG_POS_KEY = 'hvac-tag-positions';
+function loadTagPos() { try { return JSON.parse(localStorage.getItem(TAG_POS_KEY) || '{}'); } catch { return {}; } }
+function saveTagPos(key, left, top) { const p = loadTagPos(); p[key] = { left, top }; localStorage.setItem(TAG_POS_KEY, JSON.stringify(p)); }
+
 export function mount(el) {
+  /* Apply saved tag positions */
+  const tagPositions = loadTagPos();
+  el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
+    const p = tagPositions[tag.dataset.key];
+    if (p) { tag.style.left = p.left; tag.style.top = p.top; }
+  });
+
   /* Thumbnail switcher */
   const mainImg = el.querySelector('#viewer-main-img');
   el.querySelectorAll('.vthumb').forEach(thumb => {
@@ -369,16 +381,61 @@ export function mount(el) {
     }
   }
 
+  let editMode = false;
+
   el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
     const key = tag.dataset.key;
     if (!KEY_MAP[key]) { tag.style.cursor = 'default'; tag.draggable = false; return; }
-    tag.addEventListener('click', () => openChart(key));
+    tag.addEventListener('click', () => { if (!editMode) openChart(key); });
     tag.addEventListener('dragstart', e => {
+      if (editMode) { e.preventDefault(); return; }
       e.dataTransfer.setData('text/plain', key);
       e.dataTransfer.effectAllowed = 'copy';
       tag.classList.add('dragging');
     });
     tag.addEventListener('dragend', () => tag.classList.remove('dragging'));
+  });
+
+  /* Tag position edit mode */
+  const viewerFrame = el.querySelector('.viewer-frame');
+  const tagEditBtn  = el.querySelector('#tag-edit-btn');
+  let dragTag = null, dragStartX, dragStartY, dragOrigLeft, dragOrigTop;
+
+  tagEditBtn.addEventListener('click', () => {
+    editMode = !editMode;
+    tagEditBtn.classList.toggle('active', editMode);
+    viewerFrame.classList.toggle('tag-edit-mode', editMode);
+  });
+
+  el.querySelectorAll('.data-tag[data-key]').forEach(tag => {
+    tag.addEventListener('mousedown', e => {
+      if (!editMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragTag = tag;
+      const rect = viewerFrame.getBoundingClientRect();
+      dragStartX   = e.clientX;
+      dragStartY   = e.clientY;
+      dragOrigLeft = (parseFloat(tag.style.left) / 100) * rect.width;
+      dragOrigTop  = (parseFloat(tag.style.top)  / 100) * rect.height;
+      tag.classList.add('tag-moving');
+    });
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragTag) return;
+    const rect = viewerFrame.getBoundingClientRect();
+    const newLeft = Math.max(0, Math.min(95, ((dragOrigLeft + e.clientX - dragStartX) / rect.width)  * 100));
+    const newTop  = Math.max(0, Math.min(95, ((dragOrigTop  + e.clientY - dragStartY) / rect.height) * 100));
+    dragTag.style.left = `${newLeft.toFixed(1)}%`;
+    dragTag.style.top  = `${newTop.toFixed(1)}%`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragTag) return;
+    saveTagPos(dragTag.dataset.key, dragTag.style.left, dragTag.style.top);
+    dragTag.classList.remove('tag-moving');
+    dragTag = null;
   });
 
   el.querySelector('#chart-modal-close').addEventListener('click', () => {
