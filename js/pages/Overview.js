@@ -2,6 +2,7 @@
    pages/Overview.js — Chiller overview
    ═══════════════════════════════════════ */
 import { equipment, zones, outerEnv, sysPresure, alarms, ahuOverlay } from '../data/mock.js';
+import { DEFAULT_CUSTOM_TAGS } from '../data/datapoints.js';
 import { navigate } from '../router.js';
 import { renderChart, renderSparkline } from '../utils/sparkChart.js';
 import { resolveAll } from '../data/zoneParams.js';
@@ -337,14 +338,15 @@ const KEY_MAP = {
 
 const TAG_POS_KEY      = 'hvac-tag-positions';
 const TAG_OVERRIDE_KEY = 'hvac-tag-overrides';
-const CUSTOM_TAGS_KEY  = 'hvac-custom-tags';
 const HIDDEN_TAGS_KEY  = 'hvac-hidden-tags';
+function imgKey(src) { return src.replace(/[?#].*/, '').replace(/.*\//, '').replace(/\.[^.]+$/, ''); }
+function ctKey(src)  { return `hvac-custom-tags-${imgKey(src)}`; }
 function loadTagPos()      { try { return JSON.parse(localStorage.getItem(TAG_POS_KEY)      || '{}'); } catch { return {}; } }
 function saveTagPos(key, left, top) { const p = loadTagPos(); p[key] = { left, top }; localStorage.setItem(TAG_POS_KEY, JSON.stringify(p)); }
 function loadOverrides()   { try { return JSON.parse(localStorage.getItem(TAG_OVERRIDE_KEY) || '{}'); } catch { return {}; } }
 function saveOverride(key, val) { const o = loadOverrides(); o[key] = val; localStorage.setItem(TAG_OVERRIDE_KEY, JSON.stringify(o)); }
-function loadCustomTags()  { try { return JSON.parse(localStorage.getItem(CUSTOM_TAGS_KEY)  || '[]'); } catch { return []; } }
-function saveCustomTags(tags) { localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(tags)); }
+function loadCustomTags(src)  { try { return JSON.parse(localStorage.getItem(ctKey(src)) || '[]'); } catch { return []; } }
+function saveCustomTags(src, tags) { localStorage.setItem(ctKey(src), JSON.stringify(tags)); }
 function loadHidden()     { try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_TAGS_KEY) || '[]')); } catch { return new Set(); } }
 function hideTag(key)     { const s = loadHidden(); s.add(key); localStorage.setItem(HIDDEN_TAGS_KEY, JSON.stringify([...s])); }
 
@@ -366,11 +368,14 @@ export function mount(el) {
 
   /* Thumbnail switcher */
   const mainImg = el.querySelector('#viewer-main-img');
+  let currentSrc = mainImg.src;
   el.querySelectorAll('.vthumb').forEach(thumb => {
     thumb.addEventListener('click', () => {
       el.querySelectorAll('.vthumb').forEach(t => t.classList.remove('active'));
       thumb.classList.add('active');
       mainImg.src = thumb.dataset.src;
+      currentSrc = mainImg.src;
+      renderForSrc(currentSrc);
     });
   });
 
@@ -525,8 +530,8 @@ export function mount(el) {
       e.stopPropagation();
       const valEl = tag.querySelector('.dt-val');
       if (valEl) editInline(valEl, 'dt-val-input', next => {
-        const ts = loadCustomTags(); const t = ts.find(t => t.id === id);
-        if (t) { t.value = next; saveCustomTags(ts); }
+        const ts = loadCustomTags(currentSrc); const t = ts.find(t => t.id === id);
+        if (t) { t.value = next; saveCustomTags(currentSrc, ts); }
       });
     });
 
@@ -535,24 +540,36 @@ export function mount(el) {
       e.stopPropagation();
       const lblEl = tag.querySelector('.dt-label');
       if (lblEl) editInline(lblEl, 'dt-label-input', next => {
-        const ts = loadCustomTags(); const t = ts.find(t => t.id === id);
-        if (t) { t.label = next; saveCustomTags(ts); }
+        const ts = loadCustomTags(currentSrc); const t = ts.find(t => t.id === id);
+        if (t) { t.label = next; saveCustomTags(currentSrc, ts); }
       });
     });
 
     tag.querySelector('.dt-del').addEventListener('click', e => {
       e.stopPropagation();
-      saveCustomTags(loadCustomTags().filter(t => t.id !== id));
+      saveCustomTags(currentSrc, loadCustomTags(currentSrc).filter(t => t.id !== id));
       tag.remove();
     });
   }
 
-  /* Render saved custom tags */
-  loadCustomTags().forEach(ct => {
-    const tagEl = createCustomTagEl(ct);
-    viewerFrame.appendChild(tagEl);
-    attachCustomTagEvents(tagEl);
-  });
+  /* Per-image custom tag render — called on init and every image switch */
+  function renderForSrc(src) {
+    viewerFrame.querySelectorAll('.dt-custom').forEach(t => t.remove());
+    const isAhu = imgKey(src) === 'hvac3d';
+    el.querySelectorAll('.data-tag[data-key]').forEach(t => {
+      if (!isAhu) { t.style.display = 'none'; return; }
+      t.style.display = hiddenKeys.has(t.dataset.key) ? 'none' : '';
+    });
+    if (!localStorage.getItem(ctKey(src)) && isAhu) {
+      saveCustomTags(src, DEFAULT_CUSTOM_TAGS);
+    }
+    loadCustomTags(src).forEach(ct => {
+      const tagEl = createCustomTagEl(ct);
+      viewerFrame.appendChild(tagEl);
+      attachCustomTagEvents(tagEl);
+    });
+  }
+  renderForSrc(currentSrc);
 
   /* + 태그 버튼 */
   const tagAddBtn  = el.querySelector('#tag-add-btn');
@@ -563,7 +580,7 @@ export function mount(el) {
   const tafUnit    = el.querySelector('#taf-unit');
 
   el.querySelector('#tag-export-btn').addEventListener('click', () => {
-    const customTags = loadCustomTags();
+    const customTags = loadCustomTags(currentSrc);
     const data = {
       positions: loadTagPos(),
       overrides: loadOverrides(),
@@ -598,7 +615,7 @@ export function mount(el) {
     const unit    = tafUnit.value.trim();
     if (!label && !value) return;
     const ct = { id: 'c' + Date.now().toString(36), label: label || '태그', varname, value: value || '-', unit, x: '50%', y: '40%' };
-    const ts = loadCustomTags(); ts.push(ct); saveCustomTags(ts);
+    const ts = loadCustomTags(currentSrc); ts.push(ct); saveCustomTags(currentSrc, ts);
     const tagEl = createCustomTagEl(ct);
     viewerFrame.appendChild(tagEl);
     attachCustomTagEvents(tagEl);
@@ -629,8 +646,8 @@ export function mount(el) {
       if (key) {
         saveTagPos(key, dragTag.style.left, dragTag.style.top);
       } else if (cid) {
-        const ts = loadCustomTags(), t = ts.find(t => t.id === cid);
-        if (t) { t.x = dragTag.style.left; t.y = dragTag.style.top; saveCustomTags(ts); }
+        const ts = loadCustomTags(currentSrc), t = ts.find(t => t.id === cid);
+        if (t) { t.x = dragTag.style.left; t.y = dragTag.style.top; saveCustomTags(currentSrc, ts); }
       }
       dragTag.classList.remove('tag-moving');
     }
