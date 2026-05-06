@@ -198,8 +198,8 @@ export function render() {
             <img src="${import.meta.env.BASE_URL}assets/hvac3d.png" alt="전체 현황">
             <span>전체 현황</span>
           </div>
-          <div class="vthumb" data-src="${import.meta.env.BASE_URL}assets/hero2.png">
-            <img src="${import.meta.env.BASE_URL}assets/hero2.png" alt="장비 현황">
+          <div class="vthumb" data-src="${import.meta.env.BASE_URL}assets/boiler.png">
+            <img src="${import.meta.env.BASE_URL}assets/boiler.png" alt="장비 현황">
             <span>장비 현황</span>
           </div>
         </div>
