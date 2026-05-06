@@ -4,6 +4,7 @@
 import { equipment, zones, outerEnv, sysPresure, alarms, ahuOverlay } from '../data/mock.js';
 import { navigate } from '../router.js';
 import { renderChart, renderSparkline } from '../utils/sparkChart.js';
+import { resolveAll } from '../data/zoneParams.js';
 
 function equipmentCard(eq) {
   const rows = eq.points.map(p =>
@@ -201,7 +202,8 @@ export function render() {
           <div class="tag-add-form" id="tag-add-form" style="display:none">
             <div class="taf-title">새 태그 추가</div>
             <input class="taf-input" id="taf-label" placeholder="라벨 (예: 배기댐퍼)">
-            <input class="taf-input" id="taf-varname" placeholder="변수명 (예: W.AHU9.OADM)">
+            <input class="taf-input" id="taf-varname" placeholder="변수명 (예: W.AHU{ahu}.OADM)">
+            <div class="taf-hint">플레이스홀더: <code>{ahu}</code> AHU번호 &nbsp;·&nbsp; <code>{fcu}</code> FCU층번호</div>
             <div class="taf-row">
               <input class="taf-input" id="taf-value" placeholder="값 (예: 0.0)">
               <input class="taf-input taf-unit" id="taf-unit" placeholder="단위">
@@ -549,10 +551,14 @@ export function mount(el) {
   const tafUnit    = el.querySelector('#taf-unit');
 
   el.querySelector('#tag-export-btn').addEventListener('click', () => {
+    const customTags = loadCustomTags();
     const data = {
       positions: loadTagPos(),
       overrides: loadOverrides(),
-      custom:    loadCustomTags(),
+      custom: customTags.map(ct => ({
+        ...ct,
+        ...(ct.varname ? { resolved: resolveAll(ct.varname) } : {}),
+      })),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');

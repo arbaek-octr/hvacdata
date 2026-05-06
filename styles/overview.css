@@ -162,6 +162,19 @@
 }
 .taf-input:focus { border-color: var(--blue-primary); }
 .taf-unit { width: 62px; flex-shrink: 0; }
+.taf-hint {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: -4px;
+  line-height: 1.4;
+}
+.taf-hint code {
+  background: rgba(255,255,255,.08);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: monospace;
+  color: var(--blue-primary);
+}
 .taf-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
 .taf-cancel {
   background: none; border: 1px solid var(--border-default); border-radius: var(--r-sm);
