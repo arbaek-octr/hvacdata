@@ -3,6 +3,7 @@
    ═══════════════════════════════════════ */
 import { equipment, zones, outerEnv, sysPresure, alarms, ahuOverlay } from '../data/mock.js';
 import { DEFAULT_CUSTOM_TAGS } from '../data/datapoints.js';
+import { BOILER_ZONES } from '../data/boilerZones.js';
 import { navigate } from '../router.js';
 import { renderChart, renderSparkline } from '../utils/sparkChart.js';
 import { resolveAll } from '../data/zoneParams.js';
@@ -201,6 +202,28 @@ export function render() {
             <button class="vmt-btn vmt-add" id="tag-add-btn">＋ 태그</button>
             <button class="vmt-btn vmt-export" id="tag-export-btn" title="태그 설정 내보내기">↓ 내보내기</button>
           </div>
+          <div class="eq-popup" id="eq-popup">
+            <div class="eq-popup-hdr">
+              <span class="eq-popup-title" id="eq-popup-title"></span>
+              <button class="eq-popup-close" id="eq-popup-close">×</button>
+            </div>
+            <div class="eq-popup-body" id="eq-popup-body"></div>
+            <div class="eq-popup-footer" id="eq-popup-footer" style="display:none">
+              <button class="eq-add-btn" id="eq-add-btn">＋ 태그 추가</button>
+              <div class="eq-add-form" id="eq-add-form" style="display:none">
+                <input class="eq-add-input" id="eaf-label" placeholder="라벨">
+                <input class="eq-add-input" id="eaf-varname" placeholder="변수명 (예: W.AHU{AHU}.EADM)">
+                <div class="eq-add-row">
+                  <input class="eq-add-input" id="eaf-value" placeholder="값">
+                  <input class="eq-add-input eq-add-unit" id="eaf-unit" placeholder="단위">
+                </div>
+                <div class="eq-add-btns">
+                  <button class="eq-add-cancel" id="eaf-cancel">취소</button>
+                  <button class="eq-add-ok" id="eaf-ok">추가</button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="tag-add-form" id="tag-add-form" style="display:none">
             <div class="taf-title">새 태그 추가</div>
             <input class="taf-input" id="taf-label" placeholder="라벨 (예: 배기댐퍼)">
@@ -350,6 +373,12 @@ function saveCustomTags(src, tags) { localStorage.setItem(ctKey(src), JSON.strin
 function loadHidden()     { try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_TAGS_KEY) || '[]')); } catch { return new Set(); } }
 function hideTag(key)     { const s = loadHidden(); s.add(key); localStorage.setItem(HIDDEN_TAGS_KEY, JSON.stringify([...s])); }
 
+const ZONE_POS_KEY = 'hvac-zone-positions';
+function loadZonePos()             { try { return JSON.parse(localStorage.getItem(ZONE_POS_KEY) || '{}'); } catch { return {}; } }
+function saveZonePos(id, x, y)     { const p = loadZonePos(); p[id] = { x, y }; localStorage.setItem(ZONE_POS_KEY, JSON.stringify(p)); }
+function loadZoneTags(id)          { try { return JSON.parse(localStorage.getItem(`hvac-zone-tags-${id}`) || '[]'); } catch { return []; } }
+function saveZoneTags(id, tags)    { localStorage.setItem(`hvac-zone-tags-${id}`, JSON.stringify(tags)); }
+
 export function mount(el) {
   /* Apply saved positions, overrides, hidden state */
   const tagPositions = loadTagPos();
@@ -433,6 +462,7 @@ export function mount(el) {
       viewerMode = btn.dataset.mode;
       el.querySelectorAll('.vmt-btn[data-mode]').forEach(b => b.classList.toggle('active', b === btn));
       viewerFrame.classList.toggle('tag-edit-mode', viewerMode === 'edit');
+      if (activeZoneId) eqPopupFtr.style.display = viewerMode === 'edit' ? '' : 'none';
     });
   });
 
@@ -553,9 +583,90 @@ export function mount(el) {
   }
 
   /* Per-image custom tag render — called on init and every image switch */
+  /* ── Equipment zone popup ── */
+  const eqPopup      = el.querySelector('#eq-popup');
+  const eqPopupTitle = el.querySelector('#eq-popup-title');
+  const eqPopupBody  = el.querySelector('#eq-popup-body');
+  const eqPopupFtr   = el.querySelector('#eq-popup-footer');
+  const eqAddBtn     = el.querySelector('#eq-add-btn');
+  const eqAddForm    = el.querySelector('#eq-add-form');
+  const eafLabel     = el.querySelector('#eaf-label');
+  const eafVarname   = el.querySelector('#eaf-varname');
+  const eafValue     = el.querySelector('#eaf-value');
+  const eafUnit      = el.querySelector('#eaf-unit');
+  let activeZoneId   = null;
+
+  function renderZonePopupBody(zoneId) {
+    const tags = loadZoneTags(zoneId);
+    if (!tags.length) {
+      eqPopupBody.innerHTML = `<div class="eq-popup-empty">태그 없음 — 편집 모드에서 추가</div>`;
+      return;
+    }
+    eqPopupBody.innerHTML = tags.map(t => `
+      <div class="eq-tag-row" data-tid="${t.id}">
+        <span class="eq-tag-lbl" title="${t.varname || ''}">${t.label}</span>
+        <span class="eq-tag-val">${t.value}</span>
+        <span class="eq-tag-unit">${t.unit}</span>
+        <button class="eq-tag-del" title="삭제">×</button>
+      </div>`).join('');
+    eqPopupBody.querySelectorAll('.eq-tag-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tid = btn.closest('.eq-tag-row').dataset.tid;
+        saveZoneTags(zoneId, loadZoneTags(zoneId).filter(t => t.id !== tid));
+        renderZonePopupBody(zoneId);
+      });
+    });
+  }
+
+  function openZonePopup(zoneId, zoneLabel) {
+    if (activeZoneId === zoneId) { closeZonePopup(); return; }
+    activeZoneId = zoneId;
+    viewerFrame.querySelectorAll('.eq-zone').forEach(z =>
+      z.classList.toggle('ez-active', z.dataset.eqZoneId === zoneId));
+    eqPopupTitle.textContent = zoneLabel;
+    renderZonePopupBody(zoneId);
+    eqPopupFtr.style.display = viewerMode === 'edit' ? '' : 'none';
+    eqAddForm.style.display = 'none';
+    eqPopup.classList.add('open');
+  }
+
+  function closeZonePopup() {
+    activeZoneId = null;
+    eqPopup.classList.remove('open');
+    viewerFrame.querySelectorAll('.eq-zone').forEach(z => z.classList.remove('ez-active'));
+  }
+
+  el.querySelector('#eq-popup-close').addEventListener('click', closeZonePopup);
+
+  eqAddBtn.addEventListener('click', () => {
+    const open = eqAddForm.style.display !== 'none';
+    eqAddForm.style.display = open ? 'none' : 'flex';
+    if (!open) eafLabel.focus();
+  });
+  el.querySelector('#eaf-cancel').addEventListener('click', () => {
+    eqAddForm.style.display = 'none';
+    eafLabel.value = ''; eafVarname.value = ''; eafValue.value = ''; eafUnit.value = '';
+  });
+  function submitZoneTag() {
+    if (!activeZoneId) return;
+    const label = eafLabel.value.trim();
+    if (!label) return;
+    const tag = { id: 'z' + Date.now().toString(36), label, varname: eafVarname.value.trim(), value: eafValue.value.trim() || '-', unit: eafUnit.value.trim() };
+    const tags = loadZoneTags(activeZoneId); tags.push(tag); saveZoneTags(activeZoneId, tags);
+    renderZonePopupBody(activeZoneId);
+    eqAddForm.style.display = 'none';
+    eafLabel.value = ''; eafVarname.value = ''; eafValue.value = ''; eafUnit.value = '';
+  }
+  el.querySelector('#eaf-ok').addEventListener('click', submitZoneTag);
+  [eafLabel, eafVarname, eafValue, eafUnit].forEach(inp =>
+    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') submitZoneTag(); }));
+
   function renderForSrc(src) {
     viewerFrame.querySelectorAll('.dt-custom').forEach(t => t.remove());
-    const isAhu = imgKey(src) === 'hvac3d';
+    viewerFrame.querySelectorAll('.eq-zone').forEach(t => t.remove());
+    closeZonePopup();
+    const isAhu    = imgKey(src) === 'hvac3d';
+    const isBoiler = imgKey(src) === 'boiler';
     el.querySelectorAll('.data-tag[data-key]').forEach(t => {
       if (!isAhu) { t.style.display = 'none'; return; }
       t.style.display = hiddenKeys.has(t.dataset.key) ? 'none' : '';
@@ -572,6 +683,24 @@ export function mount(el) {
       viewerFrame.appendChild(tagEl);
       attachCustomTagEvents(tagEl);
     });
+    if (isBoiler) {
+      const savedPos = loadZonePos();
+      BOILER_ZONES.forEach(zone => {
+        const pos = savedPos[zone.id] || { x: zone.x, y: zone.y };
+        const div = document.createElement('div');
+        div.className = 'eq-zone';
+        div.dataset.eqZoneId = zone.id;
+        div.style.cssText = `left:${pos.x};top:${pos.y};width:${zone.w};height:${zone.h}`;
+        div.innerHTML = `<span class="eq-zone-lbl">${zone.label}</span>`;
+        div.addEventListener('click', () => { if (!didMove) openZonePopup(zone.id, zone.label); });
+        div.addEventListener('mousedown', e => {
+          if (e.button !== 0 || e.target.closest('.eq-zone-lbl')) return;
+          e.preventDefault();
+          startDrag(div, e);
+        });
+        viewerFrame.appendChild(div);
+      });
+    }
   }
   renderForSrc(currentSrc);
 
@@ -646,12 +775,14 @@ export function mount(el) {
   document.addEventListener('mouseup', () => {
     if (!dragTag) return;
     if (didMove) {
-      const key = dragTag.dataset.key, cid = dragTag.dataset.customId;
+      const key = dragTag.dataset.key, cid = dragTag.dataset.customId, zid = dragTag.dataset.eqZoneId;
       if (key) {
         saveTagPos(key, dragTag.style.left, dragTag.style.top);
       } else if (cid) {
         const ts = loadCustomTags(currentSrc), t = ts.find(t => t.id === cid);
         if (t) { t.x = dragTag.style.left; t.y = dragTag.style.top; saveCustomTags(currentSrc, ts); }
+      } else if (zid) {
+        saveZonePos(zid, dragTag.style.left, dragTag.style.top);
       }
       dragTag.classList.remove('tag-moving');
     }
